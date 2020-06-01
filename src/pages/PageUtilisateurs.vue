@@ -87,6 +87,7 @@
 <script>
     import { validationMixin } from 'vuelidate'
     import { required, email } from 'vuelidate/lib/validators'
+    import { uniqueUtilisateurname, uniqueEmail } from '@/utils/validators'
     export default {
         mixins: [validationMixin],
         data: () => ({
@@ -122,8 +123,8 @@
         computed: {
             isCardValid () {
                 // loop over all contents of the fields object and check if they exist and valid.
-                var inError = this.$v.editedItem.utilisateurname.required && this.$v.editedItem.name.required && this.$v.editedItem.filiere.required
-                    && this.$v.editedItem.email.required && this.$v.editedItem.email.email
+                var inError = this.$v.editedItem.utilisateurname.required &&  this.$v.editedItem.utilisateurname.uniqueUtilisateurname && this.$v.editedItem.name.required && this.$v.editedItem.filiere.required
+                    && this.$v.editedItem.email.required && this.$v.editedItem.email.email && this.$v.editedItem.email.uniqueEmail
                 return inError
             },
             createmode () {
@@ -145,6 +146,7 @@
                 const errors = []
                 if (!this.$v.editedItem.utilisateurname.$dirty) return errors
                 !this.$v.editedItem.utilisateurname.required && errors.push('Le nom de login est obligatoire.')
+                !this.$v.editedItem.utilisateurname.uniqueUtilisateurname && errors.push('Le nom de login existe déjà!.')
 
                 return errors
             },
@@ -168,6 +170,8 @@
                 if (!this.$v.editedItem.email.$dirty) return errors
                 !this.$v.editedItem.email.email && errors.push('E-mail doit etre valide')
                 !this.$v.editedItem.email.required && errors.push('E-mail est obligatoire')
+                !this.$v.editedItem.email.uniqueEmail && errors.push('E-mail existe déjà!')
+                console.log ('email errors:' , errors)
                 return errors
             },
             newpasswordErrors () {
@@ -193,14 +197,16 @@
         validations: {
             editedItem: {
                 utilisateurname: {
-                    required
+                    required,
+                    uniqueUtilisateurname
                 },
                 name: {
                     required
                 },
                 email: {
                     required,
-                    email
+                    email,
+                    uniqueEmail
                 },
                 newpassword: {
                     required
