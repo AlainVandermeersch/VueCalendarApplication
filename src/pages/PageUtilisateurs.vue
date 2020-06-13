@@ -27,7 +27,7 @@
                         <v-card-text>
                             <v-container>
                                 <v-row>
-                                    <v-col cols="12" sm="6" md="4">
+                                    <v-col v-if="createmode" cols="12" sm="6" md="4">
                                         <v-text-field v-model="editedItem.utilisateurname"  :error-messages="utilisateurnameErrors" required @input="$v.editedItem.utilisateurname.$touch()" @blur="$v.editedItem.utilisateurname.$touch()" label="Login"></v-text-field>
                                     </v-col>
                                     <v-col cols="12" sm="6" md="4">
@@ -43,9 +43,16 @@
                                                 item-text="nom"
                                                 item-value="nom"
                                                 :error-messages="filiereErrors" required @input="$v.editedItem.filiere.$touch()" @blur="$v.editedItem.filiere.$touch()"
-                                                label="Filiere"
+                                                multiple
+                                                chips
+                                                hint="Filieres"
+                                                persistent-hint
+                                                label="Filieres"
                                                 single-line
                                         ></v-select>
+                                    </v-col>
+                                    <v-col cols="12" sm="6" md="4">
+                                        <v-checkbox v-model="editedItem.notifiable" label="Notifiable"></v-checkbox>
                                     </v-col>
                                     <v-col v-if="createmode" cols="12" sm="6" md="4">
                                         <v-text-field v-model="editedItem.newpassword"  :error-messages="newpasswordErrors"  @input="$v.editedItem.newpassword.$touch()" @blur="$v.editedItem.newpassword.$touch()" label="Mot de passe"></v-text-field>
@@ -101,6 +108,7 @@
                 { text: 'Nom', value: 'name' },
                 { text: 'Email', value: 'email' },
                 { text: 'Filiere', value: 'filiere' },
+                { text: 'Notifiable', value: 'notifiable' },
                 { text: 'Actions', value: 'actions', sortable: false },
             ],
             editedIndex: -1,
@@ -108,23 +116,31 @@
                 utilisateurname: '',
                 name: '',
                 email: '',
-                filiere: '',
+                filiere: [],
+                notifiable: false,
                 newpassword: ''
             },
             defaultItem: {
                 utilisateurname: '',
                 name: '',
                 email: '',
-                filiere: ''
+                filiere: [],
+                notifiable: false,
 
             }
         }),
 
         computed: {
+            activefiliere () {
+                return this.$store.state.auth.authstatus.authFiliere
+            },
             isCardValid () {
                 // loop over all contents of the fields object and check if they exist and valid.
-                var inError = this.$v.editedItem.utilisateurname.required &&  this.$v.editedItem.utilisateurname.uniqueUtilisateurname && this.$v.editedItem.name.required && this.$v.editedItem.filiere.required
-                    && this.$v.editedItem.email.required && this.$v.editedItem.email.email && this.$v.editedItem.email.uniqueEmail
+                let inError = this.$v.editedItem.name.required && this.$v.editedItem.filiere.required
+
+                if (this.editedIndex === -1) {
+                    inError =  inError && this.$v.editedItem.utilisateurname.required &&  this.$v.editedItem.utilisateurname.uniqueUtilisateurname && this.$v.editedItem.email.required && this.$v.editedItem.email.email && this.$v.editedItem.email.uniqueEmail
+                }
                 return inError
             },
             createmode () {
@@ -134,7 +150,14 @@
                 return this.editedIndex === -1 ? 'Créer Utilisateur' : 'Editer Utilisateur'
             },
             utilisateurs() {
-                return Object.values(this.$store.state.utilisateurs.items)
+                const myutilisateurs = Object.values(this.$store.state.utilisateurs.items)
+                   myutilisateurs.forEach ( myutilisateur => {
+                    const filierelist=  myutilisateur.filiere + '' // the +'' forces filiereList to become a string
+                    const items=filierelist.split(",")
+                   //  console.log('FiliereItems: ', items)
+                    myutilisateur.filiere =items
+                })
+                return myutilisateurs
             },
             errormsg() {
                 return this.$store.state.utilisateurs.errormsg
@@ -171,7 +194,7 @@
                 !this.$v.editedItem.email.email && errors.push('E-mail doit etre valide')
                 !this.$v.editedItem.email.required && errors.push('E-mail est obligatoire')
                 !this.$v.editedItem.email.uniqueEmail && errors.push('E-mail existe déjà!')
-                console.log ('email errors:' , errors)
+                // console.log ('email errors:' , errors)
                 return errors
             },
             newpasswordErrors () {
@@ -191,8 +214,7 @@
         },
 
         mounted () {
-            this.getutilisateurs()
-            this.getFilieres()
+            this.initialize()
         },
         validations: {
             editedItem: {
@@ -217,13 +239,13 @@
             }
         },
         methods: {
-            getutilisateurs () {
+            initialize() {
+                this.$store.dispatch('filieres/fetchAllFilieres',{'nomfiliere':'Toutes'})
+                    .then(() =>  this.$store.dispatch('utilisateurs/fetchAllUtilisateurs'))
+            },
+            getutilisateurs() {
                 this.$store.dispatch('utilisateurs/fetchAllUtilisateurs')
             },
-            getFilieres () {
-                this.$store.dispatch('filieres/fetchAllFilieres')
-            },
-
             editItem (item) {
                 this.editedIndex = this.utilisateurs.indexOf(item)
                 this.editedItem = Object.assign({}, item)
@@ -250,11 +272,13 @@
             },
 
             save () {
+                const filierelist = this.editedItem.filiere.join()
                 const thisutilisateur = { utilisateurname: this.editedItem.utilisateurname,
                     name: this.editedItem.name,
-                    filiere:this.editedItem.filiere,
+                    filiere:filierelist,
                     email: this.editedItem.email,
-                    newpassword: this.editedItem.newpassword
+                    newpassword: this.editedItem.newpassword,
+                    notifiable: this.editedItem.notifiable
                 }
 
                 if (this.editedIndex > -1) {

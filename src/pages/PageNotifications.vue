@@ -26,12 +26,12 @@
                     </template>
                     <v-card >
                         <v-card-title>
-                            <span class="headline">{{ formTitle }}</span>
+                            <span class="headline">Créer Notification</span>
                         </v-card-title>
 
                         <v-card-text>
                             <v-container>
-                                <v-row v-if="activefiliere =='Tous'">
+                                <v-row v-if="activefiliere =='Toutes' || activefiliere.indexOf(',') >-1">
                                     <v-select
                                               v-model="editedItem.filiere"
                                               :items="filieres"
@@ -43,7 +43,20 @@
                                     ></v-select>
                                 </v-row>
                                 <v-row>
+                                    <v-text-field
+                                            hint="ajoutez le sujet de votre notification"
+                                            v-model="editedItem.sujet"
+                                            :error-messages="sujetErrors"
+                                            required
+                                            counter="100"
+                                            single-line
+                                            @input="$v.editedItem.sujet.$touch()"
+                                            @blur="$v.editedItem.sujet.$touch()"
+                                            label="Sujet"
+                                    ></v-text-field>
 
+                                </v-row>
+                                <v-row>
                                         <v-text-field
                                                 hint="ajoutez le contenu de votre notification"
                                                 v-model="editedItem.text"
@@ -72,13 +85,6 @@
         <template v-slot:item.actions="{ item }">
             <v-icon
                     small
-                    class="mr-2"
-                    @click="editItem(item)"
-            >
-                mdi-pencil
-            </v-icon>
-            <v-icon
-                    small
                     @click="deleteItem(item)"
             >
                 mdi-delete
@@ -102,6 +108,7 @@
                 },
                 {text: 'Filiere', value: 'filiere'},
                 {text: 'Auteur', value: 'auteur'},
+                {text: 'Sujet', value: 'sujet'},
                 {text: 'Text', value: 'text'},
                 {text: 'Actions', value: 'actions', sortable: false},
             ],
@@ -110,12 +117,14 @@
                 date: '',
                 auteur: '',
                 filiere: '',
+                sujet: '',
                 text: ''
             },
             defaultItem: {
                 date: '',
                 auteur: '',
                 filiere: '',
+                sujet: '',
                 text: ''
             },
             filiere:''
@@ -125,14 +134,22 @@
         computed: {
             isCardValid() {
                 // loop over all contents of the fields object and check if they exist and valid.
-                var inError = this.$v.editedItem.text.required && this.$v.editedItem.filiere.required
+                var inError = this.$v.editedItem.sujet.required && this.$v.editedItem.text.required
+                if (this.$store.state.auth.authstatus.authFiliere == 'Toutes' || this.$store.state.auth.authstatus.authFiliere.indexOf(',') >-1) {
+                    inError = inError && this.$v.editedItem.filiere.required
+                }
                 return inError
             },
-            formTitle() {
-                return this.editedIndex === -1 ? 'Créer Notification' : 'Editer Notification'
-            },
+
             notifications() {
                 return Object.values(this.$store.state.notifications.items)
+            },
+            sujetErrors() {
+                const errors = []
+                if (!this.$v.editedItem.sujet.$dirty) return errors
+                !this.$v.editedItem.sujet.required && errors.push('Le sujet est obligatoire.')
+
+                return errors
             },
             textErrors() {
                 const errors = []
@@ -152,9 +169,13 @@
                 return this.$store.state.auth.authstatus.authFiliere
             },
             filieres() {
-                return Object.values(this.$store.state.filieres.items)
+                var myFilieres = Object.values(this.$store.state.filieres.items)
+                if (this.$store.state.auth.authstatus.authFiliere == 'Toutes') {
+                    const toutesFilieres = { nom: 'Toutes'}
+                    return [...myFilieres, toutesFilieres ]
+                }
+                return myFilieres
             },
-
         },
 
         watch: {
@@ -164,12 +185,14 @@
         },
 
         mounted() {
-            this.getNotifications()
-            this.getFilieres()
+            this.initialize()
         },
         validations: {
             editedItem: {
                 filiere: {
+                    required
+                },
+                sujet: {
                     required
                 },
                 text: {
@@ -179,18 +202,13 @@
             }
         },
         methods: {
+            initialize () {
+                this.$store.dispatch('filieres/fetchAllFilieres',{'nomfiliere':this.activefiliere})
+                    .then(() => this.$store.dispatch('notifications/fetchAllNotifications',{'nomfiliere':this.activefiliere}))
+            },
             getNotifications() {
                 this.$store.dispatch('notifications/fetchAllNotifications',{'nomfiliere':this.activefiliere})
             },
-            getFilieres () {
-                this.$store.dispatch('filieres/fetchAllFilieres')
-            },
-            editItem(item) {
-                this.editedIndex = this.notifications.indexOf(item)
-                this.editedItem = Object.assign({}, item)
-                this.dialog = true
-            },
-
             deleteItem(item) {
                 const index = this.notifications.indexOf(item)
                 const booDelete = confirm('Etes vous sur de detruire cette notification?') && this.notifications.splice(index, 1)
@@ -209,28 +227,21 @@
             },
 
             save() {
-                if (this.activefiliere != 'Tous') {
-                    this.editedItem.filiere = this.filieres.find(obj => {
+
+
+
+                var notificationFiliereNom = this.editedItem.filiere
+                if (this.$store.state.auth.authstatus.authFiliere != 'Toutes' && this.$store.state.auth.authstatus.authFiliere.indexOf(',') == -1) {
+                    const notificationFiliere = this.filieres.find(obj => {
                         return obj.nom === this.activefiliere
                     })
-                }
-
-
-                if (this.editedIndex > -1) {
-                    Object.assign(this.notifications[this.editedIndex], this.editedItem)
-                    this.$store.dispatch('notifications/updateNotification', this.editedItem)
-                } else {
-                    let eventFiliere = this.editedItem.filiere
-                    if (this.activefiliere != 'Tous') {
-                        eventFiliere = this.filieres.find(obj => {
-                            return obj.nom === this.activefiliere
-                        })
-                    }
-                    this.notifications.push(this.editedItem)
-                    this.$store.dispatch('notifications/createNotification',{  text: this.editedItem.text,
-                        filiere: eventFiliere})
+                    notificationFiliereNom = notificationFiliere.nom
 
                 }
+                this.$store.dispatch('notifications/createNotification',{  sujet: this.editedItem.sujet,text: this.editedItem.text,
+                    filiere: notificationFiliereNom})
+
+
                 this.close()
 
             },

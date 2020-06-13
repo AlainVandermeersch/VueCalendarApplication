@@ -70,7 +70,7 @@
                                         </template>
                                         <v-date-picker v-model="newEvent.end" @input="menu2 = false"></v-date-picker>
                                     </v-menu>
-                                    <v-select v-if="activefiliere =='Tous'"
+                                    <v-select v-if="activefiliere =='Toutes' || activefiliere.indexOf(',') >-1"
                                               v-model="newEvent.filiere"
                                               :items="filieres"
                                               :error-messages="filiereErrors" required @input="$v.newEvent.filiere.$touch()" @blur="$v.newEvent.filiere.$touch()"
@@ -80,7 +80,7 @@
                                               return-object
                                               single-line
                                     ></v-select>
-                                    <v-select v-if="activefiliere =='Tous'"
+                                    <v-select v-if="activefiliere =='Toutes'"
                                               v-model="newEvent.statut"
                                               :items="statuts"
                                               :error-messages="statutErrors" required @input="$v.newEvent.statut.$touch()" @blur="$v.newEvent.statut.$touch()"
@@ -120,8 +120,12 @@
                         type="month"
                         locale="fr"
                         @click:event="showEvent"
-                        @change="updateRange"
-                ></v-calendar>
+                        @change="updateRange" >
+                <template v-slot:event="{ event }">
+                    <v-icon :color="event.fichecolor">{{ event.icon }}</v-icon>
+                    {{ event.filiere }}  {{ event.resident }}
+                </template>
+                </v-calendar>
                 <v-menu
                         v-model="selectedOpen"
                         :close-on-content-click="false"
@@ -133,7 +137,7 @@
                             <v-btn @click="deleteEvent(selectedEvent)" icon>
                                 <v-icon>mdi-delete</v-icon>
                             </v-btn>
-                            <v-toolbar-title>{{ selectedEvent.name}}</v-toolbar-title>
+                            <v-toolbar-title>{{ selectedEvent.resident}}</v-toolbar-title>
                             <div class="flex-grow-1"></div>
                         </v-toolbar>
                         <v-card-text>
@@ -142,7 +146,7 @@
                                 <p> {{ selectedEvent.details }} </p>
                             </form>
                             <form v-else>
-                                <v-select v-if="activefiliere =='Tous'"
+                                <v-select v-if="activefiliere =='Toutes'"
                                           v-model="selectedEvent.statut"
                                           :items="statuts"
                                           item-text="statut"
@@ -224,9 +228,6 @@
 </template>
 
 <script>
-
-
-    import db from '@/fb'
     import { validationMixin } from 'vuelidate'
     import { required } from 'vuelidate/lib/validators'
     import parseISO from 'date-fns/parseISO'
@@ -273,8 +274,7 @@
             },
         },
         mounted () {
-            this.getEvents()
-            this.getFilieres()
+            this.initialize()
         },
         validations: {
             newEvent: {
@@ -308,8 +308,11 @@
                 // loop over all contents of the fields object and check if they exist and valid.
                 var inError = this.$v.newEvent.nom.required  && this.$v.newEvent.chambre.required
                     && this.$v.newEvent.details.required && this.$v.newEvent.start.required && this.$v.newEvent.end.required
-                if (this.$store.state.auth.authstatus.authFiliere == 'Tous') {
-                    inError = inError && this.$v.newEvent.filiere.required && this.$v.newEvent.statut.required
+                if (this.$store.state.auth.authstatus.authFiliere == 'Toutes') {
+                    inError = inError && this.$v.newEvent.statut.required
+                }
+                if (this.$store.state.auth.authstatus.authFiliere == 'Toutes' || this.$store.state.auth.authstatus.authFiliere.indexOf(',') >-1) {
+                    inError = inError && this.$v.newEvent.filiere.required
                 }
                 return inError
             },
@@ -411,13 +414,15 @@
                 }
                 return formattedDate
             },
+            initialize () {
+                this.$store.dispatch('filieres/fetchAllFilieres',{'nomfiliere':this.activefiliere})
+                    .then(() => this.$store.dispatch('calendar/fetchAllEvents',{'nomfiliere':this.activefiliere}))
+            },
             getEvents () {
                 console.log("fetching events for filiere: ",this.activefiliere)
                 this.$store.dispatch('calendar/fetchAllEvents',{'nomfiliere':this.activefiliere})
             },
-            getFilieres () {
-                this.$store.dispatch('filieres/fetchAllFilieres')
-            },
+
             viewDay ({ date }) {
                 this.focus = date
                 this.type = 'day'
@@ -428,6 +433,11 @@
                 const filiere = this.filieres.find(obj => {
                     return obj.nom === event.filiere
                 })
+                if (!filiere)
+                {
+                    console.log(`Event for resident ${event.name} Filiere with name ${event.filiere} does not exist. Filieres : `,this.filieres)
+                    return "#FFA500" // orange
+                }
                 return filiere.couleur
             },
             setToday () {
@@ -446,36 +456,36 @@
 
                 })
             },
-            async addEvent () {
+            addEvent () {
                 let eventFiliere = this.newEvent.filiere
                 let eventStatut = this.newEvent.statut
-                if (this.activefiliere !='Tous') {
-                    eventFiliere = this.filieres.find(obj => {
+                if (this.$store.state.auth.authstatus.authFiliere != 'Toutes' && this.$store.state.auth.authstatus.authFiliere.indexOf(',') == -1) {
+                    // utilisateur qui gère une filière
+                        eventFiliere = this.filieres.find(obj => {
                         return obj.nom === this.activefiliere
                     })
                     eventStatut= 'A Valider'
-                    console.log('We will create a event with start date: ',this.newEvent.start , 'with end date: ',this.newEvent.end ,' filiere: ',eventFiliere.nom , ' and statut: ',eventStatut )
                 }
-
-                await db.collection('calEvent').add({
-                    name: eventFiliere.nom + ' ' + this.newEvent.nom,
-                    details: this.newEvent.details,
+                if (this.$store.state.auth.authstatus.authFiliere.indexOf(',') > -1) {
+                    // utilisateur qui gère plusieurs filières
+                    eventStatut = 'A Valider'
+                }
+                console.log('We will create a event with start date: ',this.newEvent.start , 'with end date: ',this.newEvent.end ,' filiere: ',eventFiliere.nom , ' and statut: ',eventStatut )
+                const thisEvent= {
+                    resident: this.newEvent.nom,
                     start: this.newEvent.start,
-                    end: this.newEvent.end,
+                    end:this.newEvent.end,
+                    nomfiliere:eventFiliere.nom ,
                     chambre: this.newEvent.chambre,
-                    filiere: eventFiliere.nom,
-                    statut: eventStatut
-                })
-                const textNotification="Nouveau Séjour Statut : " + eventStatut + " Resident: " + eventFiliere.nom + ' ' + this.newEvent.nom + " Chambre: "
-                    + this.newEvent.chambre + " Arrivée: " + this.newEvent.start + " Départ: " + this.newEvent.end + " Détails: " + this.newEvent.details
-                this.getEvents()
-
-                this.$store.dispatch('notifications/createNotification', {
-                    text: textNotification,
-                    filiere: eventFiliere.nom
-                })
-                this.close()
-                this.newEvent = Object.assign({}, this.defaultEvent)
+                    statut: eventStatut,
+                    details: this.newEvent.details,
+                }
+                this.$store.dispatch('calendar/addEvent',thisEvent)
+                    .then(() => {
+                        this.getEvents()
+                        this.close()
+                        this.newEvent = Object.assign({}, this.defaultEvent)
+                    })
 
 
             },
@@ -484,31 +494,22 @@
             },
             updateEvent (ev) {
 
-                if (this.activefiliere !='Tous') {
+                if (this.activefiliere !='Toutes') {
                     ev.statut= 'A Valider'
                 }
-                db.collection('calEvent').doc(this.currentlyEditing).update(ev)
-                const textNotification="Modification Séjour Statut : " + ev.statut + " Resident: " + ev.name + " Chambre: "
-                    + ev.chambre + " Arrivée: " + ev.start + " Départ: " + ev.end + " Détails: " + ev.details
-                this.currentlyEditing = null
-                this.$store.dispatch('notifications/createNotification', {
-                    text: textNotification,
-                    filiere: ev.filiere
-                })
-            },
-            async deleteEvent (ev) {
-                const nomfiliere=ev.filiere
-                const id= ev.id
+                this.$store.dispatch('calendar/updateEvent',ev)
+                    .then(() => {
+                        this.currentlyEditing = null
+                    })
 
-                const textNotification="Delete Séjour Statut : " + ev.statut + " Resident: " + ev.name + " Chambre: "
-                    + ev.chambre + " Arrivée: " + ev.start + " Départ: " + ev.end + " Détails: " + ev.details
-                await db.collection('calEvent').doc(id).delete()
-                this.selectedOpen = false,
-                    this.getEvents()
-                this.$store.dispatch('notifications/createNotification', {
-                    text: textNotification,
-                    filiere: nomfiliere
-                })
+            },
+            deleteEvent (ev) {
+
+                this.$store.dispatch('calendar/deleteEvent',ev)
+                    .then(() => {
+                        this.selectedOpen = false
+                        this.getEvents()
+                    })
             },
             showEvent ({ nativeEvent, event }) {
                 const open = () => {

@@ -192,7 +192,7 @@
         },
         methods: {
             getFilieres () {
-                this.$store.dispatch('filieres/fetchAllFilieres')
+                this.$store.dispatch('filieres/fetchAllFilieres',{'nomfiliere':'Toutes'})
             },
 
             editItem (item) {
