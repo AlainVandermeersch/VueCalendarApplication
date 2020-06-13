@@ -65,7 +65,7 @@ router.beforeEach((to, from, next) => {
         .then(user => {
             if (to.matched.some(route => route.meta.requiresAdmin)) {
                 // protected route
-                if (user && user.filiere == 'Tous') {
+                if (user && user.filiere == 'Toutes') {
                     console.log('Admin user can proceed')
                     next()
                 } else {
