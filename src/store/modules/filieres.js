@@ -57,17 +57,47 @@ export default {
                     });
             })
         },
-        fetchAllFilieres: async context => {
-            let snapshot = await db.collection('filieres').get()
-            const items = []
-            snapshot.forEach(doc => {
-                   let appData = doc.data()
-                   appData.nom = doc.id
-                   items.push(appData)
-               })
-               context.commit('setAllFilieres',items)
+        fetchAllFilieres({state,commit}, { nomfiliere}) {
+            if ( nomfiliere=='Toutes') {
+                console.log('I am fetching all filieres')
+                return new Promise((resolve) => {
+                    db.collection('filieres').get()
+                        .then((snapshot) => {
+                            const items = []
+                            snapshot.forEach(doc => {
+                                let appData = doc.data()
+                                appData.nom = doc.id
+                                items.push(appData)
+                            })
+                            commit('setAllFilieres', items)
+                            resolve(state.items)
+                        })
+                })
+            }
+            else {
+                const nomsAsString = nomfiliere + '' // force it to become a string
+                const filiereArray= nomsAsString.split(",")
+                console.log('I am fetching filieres:',filiereArray)
+                return new Promise((resolve) => {
+                    db.collection('filieres').get()
+                        .then((snapshot) => {
+                            const items = []
+                            snapshot.forEach(doc => {
+                                let appData = doc.data()
+                                appData.nom = doc.id
+                                if (filiereArray.includes( appData.nom)) {
+                                    console.log(`Adding filiere ${appData.nom}`)
+                                    items.push(appData)
+                                }
 
+                            })
+                            commit('setAllFilieres',items)
+                            resolve(state.items)
+                        })
+                })
+            }
         },
+
         fetchfiliere: ({dispatch}, {id}) => dispatch('fetchItem', {resource: 'filieres', id}, {root: true}),
         fetchfilieres: ({dispatch}, {ids}) => dispatch('fetchItems', {resource: 'filieres', ids}, {root: true})
     },

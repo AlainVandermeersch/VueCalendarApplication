@@ -21,7 +21,7 @@ export default {
         const utilisateurnameLower = utilisateur.utilisateurname.toLowerCase()
         const email = utilisateur.email.toLowerCase()
         const password = utilisateur.newpassword
-        const updates = {name:utilisateur.name, utilisateurname:utilisateur.utilisateurname, utilisateurnameLower,filiere:utilisateur.filiere}
+        const updates = {name:utilisateur.name, utilisateurname:utilisateur.utilisateurname, utilisateurnameLower,filiere:utilisateur.filiere, notifiable: utilisateur.notifiable}
         let ok= true
         firebase.auth().createUserWithEmailAndPassword(email, password)
           .then((data) => {
@@ -71,7 +71,8 @@ export default {
         utilisateurname: utilisateur.utilisateurname,
         utilisateurnameLower: utilisateur.utilisateurname ? utilisateur.utilisateurname.toLowerCase() : null,
         name: utilisateur.name,
-        filiere: utilisateur.filiere
+        filiere: utilisateur.filiere,
+        notifiable: utilisateur.notifiable
       }
       const id = utilisateur.email.toLowerCase()
       return new Promise((resolve) => {

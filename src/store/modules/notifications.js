@@ -13,8 +13,8 @@ export default {
 
 
     actions: {
-        createNotification ({state, commit,rootState}, { text,filiere}) {
-
+        createNotification ({state, commit,rootState}, { sujet,text,filiere}) {
+            console.log(`Creating Notification for filiere ${filiere}`)
             const mydate= new Date()
             const myMonth= mydate.getMonth()+1
             const dateNotification= mydate.getFullYear() + "-" + ("00" + myMonth).slice(-2) + "-" +  ("00" + mydate.getDate()).slice(-2)  + " "
@@ -22,8 +22,33 @@ export default {
 
             return new Promise((resolve) => {
                 const auteur= rootState.auth.authstatus.authNomUtilisateur
-                const notificationdata = { filiere,text, auteur,date:dateNotification }
-                db.collection('notifications').add(notificationdata)
+                const notificationdata = { filiere,sujet,text, auteur,date:dateNotification }
+                    const emails = []
+                    db.collection('utilisateurs').get()
+                        .then((snapshot) => {
+                            snapshot.forEach(doc => {
+                                const appData = doc.data()
+                                if (appData.notifiable && (filiere === 'Toutes' || appData.filiere.includes(filiere) || appData.filiere.includes('Toutes')))
+                                {
+                                    const oneemail = `${appData.name}<${doc.id}>`
+                                    emails.push(oneemail)
+                                }
+                        })
+
+                        console.log("Will send emails to: ", emails)
+                        return db.collection('email').add({
+                            to: emails,
+                            message: {
+                                subject: `Les Filieres du Roseau - ${sujet} - Notification de ${auteur} `,
+                                html: text,
+                            },
+                        })
+                    })
+                    .then((doc) => {
+                        notificationdata.emailId = doc.id
+                        return db.collection('notifications').add(notificationdata)
+                    })
+
                     .then((doc) => {
                         commit('setItem', {resource: 'notifications', id:doc.id, item: notificationdata}, {root: true})
                         resolve(state.items[doc.id])
@@ -34,18 +59,6 @@ export default {
             })
         },
 
-        updateNotification ({state}, myNotification) {
-            return new Promise((resolve) => {
-                db.collection('notifications').doc(myNotification.id)
-                    .update({text: myNotification.text})
-                    .then(() => {
-                       resolve(state.items[myNotification.id])
-                    })
-                    .catch(function(error) {
-                        console.error("Error updating notification: ", error);
-                    });
-            })
-        },
         deleteNotification ({state,commit}, { id}) {
             return new Promise((resolve) => {
                 db.collection('notifications').doc(id)
@@ -60,7 +73,7 @@ export default {
             })
         },
         fetchAllNotifications({state,commit}, { nomfiliere}) {
-            if (nomfiliere=='Tous') {
+            if (nomfiliere=='Toutes') {
                 return new Promise((resolve) => {
                     db.collection('notifications').get()
                         .then((snapshot) => {
@@ -71,22 +84,28 @@ export default {
                                 notifications.push(appData)
                             })
                             commit('setAllNotifications', notifications)
-                            resolve(state.items)
+                            resolve(state.notifications)
                         })
                 })
             }
             else {
+                const nomsAsString = nomfiliere + '' // force it to become a string
+                const filiereArray= nomsAsString.split(",")
+
+                console.log('I am fetching all notifications of filiere:',filiereArray)
                return new Promise((resolve) => {
-                    db.collection('notifications').where('filiere','==', nomfiliere).get()
+                    db.collection('notifications').get()
                         .then((snapshot) => {
                             const notifications = []
                             snapshot.forEach(doc => {
                                 let appData = doc.data()
                                 appData.id = doc.id
-                                notifications.push(appData)
+                                if ( appData.filiere === 'Toutes' || filiereArray.includes( appData.filiere)) {
+                                    notifications.push(appData)
+                                }
                             })
                             commit('setAllNotifications', notifications)
-                            resolve(state.items)
+                            resolve(state.notifications)
                         })
                 })
             }

@@ -15,7 +15,8 @@ export default {
 
 
 
-  actions: {
+  actions:
+      {
     initAuthentication ({dispatch}) {
 
         return new Promise((resolve) => {
@@ -118,18 +119,10 @@ export default {
                        if (doc.exists) {
                            const utilisateur= doc.data()
                            let isAdmin='N'
-                           if (utilisateur.filiere =='Tous') {
+                           if (utilisateur.filiere =='Toutes') {
                                isAdmin='Y'
                            }
-                           else {
-                               db.collection('filieres').doc(utilisateur.filiere).get()
-                                   .then(function (doc) {
-                                       if (!doc.exists) {
-                                           console.log("validateAuthorizedUtilisateur utilisateur " + userGoogleAuth.email + " a une filiere  inconnue: " + utilisateur.filiere)
-                                           resolve(null)
-                                       }
-                                   })
-                           }
+
                            commit('setAuthStatus', {authId:userGoogleAuth.email,authNomUtilisateur: utilisateur.utilisateurname,authAdmin:isAdmin , authFiliere: utilisateur.filiere})
                            resolve(utilisateur)
 
