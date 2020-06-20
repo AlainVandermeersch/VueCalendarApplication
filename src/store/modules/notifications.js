@@ -14,7 +14,7 @@ export default {
 
     actions: {
         createNotification ({state, commit,rootState}, { sujet,text,filiere}) {
-            console.log(`Creating Notification for filiere ${filiere}`)
+           //  console.log(`Creating Notification for filiere ${filiere}`)
             const mydate= new Date()
             const myMonth= mydate.getMonth()+1
             const dateNotification= mydate.getFullYear() + "-" + ("00" + myMonth).slice(-2) + "-" +  ("00" + mydate.getDate()).slice(-2)  + " "
@@ -92,7 +92,6 @@ export default {
                 const nomsAsString = nomfiliere + '' // force it to become a string
                 const filiereArray= nomsAsString.split(",")
 
-                console.log('I am fetching all notifications of filiere:',filiereArray)
                return new Promise((resolve) => {
                     db.collection('notifications').get()
                         .then((snapshot) => {
