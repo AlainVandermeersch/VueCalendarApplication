@@ -1,12 +1,22 @@
 <template>
-    <v-data-table
-            :headers="headers"
-            :items="notifications"
-            sort-by="date"
-            sort-desc
-            class="elevation-1"
-    >
-
+    <v-card>
+        <v-card-title>
+            <v-text-field
+                    v-model="search"
+                    append-icon="search"
+                    label="Search"
+                    single-line
+                    hide-details
+            ></v-text-field>
+        </v-card-title>
+        <v-data-table
+                :headers="headers"
+                :items="notifications"
+                :search="search"
+                sort-by="date"
+                sort-desc
+                class="elevation-1"
+        >
         <template v-slot:item.couleur="{ item }">
             <v-chip :color="item.couleur" dark></v-chip>
         </template>
@@ -91,6 +101,7 @@
             </v-icon>
         </template>
     </v-data-table>
+    </v-card>
 </template>
 
 <script>
@@ -99,6 +110,7 @@
     export default {
         mixins: [validationMixin],
         data: () => ({
+            search: '',
             dialog: false,
             headers: [
                 {

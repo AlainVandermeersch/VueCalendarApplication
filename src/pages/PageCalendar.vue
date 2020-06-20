@@ -11,6 +11,7 @@
                         <v-icon small>mdi-chevron-right</v-icon>
                     </v-btn>
                     <div class="flex-grow-1"></div>
+                    <v-btn color="primary" dark class="mb-2 mr-2" @click="telecharger">Telecharger</v-btn>
                      <v-dialog v-model="dialog" max-width="500">
                         <template v-slot:activator="{on }">
                             <v-btn color="primary" dark class="mb-2" v-on="on">Nouveau Séjour</v-btn>
@@ -95,9 +96,9 @@
                                             :error-messages="detailsErrors" required @input="$v.newEvent.details.$touch()" @blur="$v.newEvent.details.$touch()"
                                             style="width: 100%"
                                             :min-height="100"
-                                            placeholder="ajoutez les informations sur le séjour: accompagnants, relation avec le résident, age des résidents, etc...">
+                                            placeholder="ajoutez les informations de base sur les occupants, besoins particuliers, etc...">
                                     </textarea-autosize>
-                                    <v-btn color="blue darken-1" text @click="close">Quitter</v-btn>
+                                    <v-btn color="blue darken-1" text @click="quitter">Quitter</v-btn>
                                     <v-btn :disabled="!isCardValid" type="submit" color="primary" class="mr-4" >
                                         Créer Séjour
                                     </v-btn>
@@ -141,9 +142,57 @@
                             <div class="flex-grow-1"></div>
                         </v-toolbar>
                         <v-card-text>
-                            <form v-if="currentlyEditing !== selectedEvent.id">
-                                <p> {{ selectedEvent.statut }}:  {{ selectedEvent.chambre }}</p>
-                                <p> {{ selectedEvent.details }} </p>
+                            <form v-if="currentlyEditing.id !== selectedEvent.id">
+                                <v-subheader>Arrivée: {{ selectedEvent.start }} Départ: {{ selectedEvent.end }} </v-subheader>
+                                <v-subheader>{{ selectedEvent.statut }}:  {{ selectedEvent.chambre }} </v-subheader>
+                                <v-subheader>{{ selectedEvent.details }} </v-subheader>
+                                <v-subheader v-if="selectedEvent.fiche && selectedEvent.fiche.length > 0">La Fiche des Résidents</v-subheader>
+                                <v-simple-table v-if="selectedEvent.fiche && selectedEvent.fiche.length > 0">
+                                    <template v-slot:default>
+                                        <thead>
+                                        <tr>
+                                            <th class="text-left">Nom</th>
+                                            <th class="text-left">Sexe</th>
+                                            <th class="text-left">Age</th>
+                                            <th class="text-left">Role</th>
+                                            <th class="text-left">Relation Patient</th>
+                                        </tr>
+                                        </thead>
+                                        <tbody>
+                                        <tr v-for="item in selectedEvent.fiche" :key="item.nom">
+                                            <td>{{ item.nom }}</td>
+                                            <td>{{ item.sexe }}</td>
+                                            <td>{{ item.age }}</td>
+                                            <td>{{ item.role }}</td>
+                                            <td>{{ item.relationpatient }}</td>
+                                        </tr>
+                                        </tbody>
+                                    </template>
+                                </v-simple-table>
+                                <v-subheader v-if="selectedEvent.changes">Historique des Changements</v-subheader>
+                                <v-simple-table v-if="selectedEvent.changes">
+                                    <template v-slot:default>
+                                        <thead>
+                                        <tr>
+                                            <th class="text-left">Auteur</th>
+                                            <th class="text-left">Date</th>
+                                            <th class="text-left">Element</th>
+                                            <th class="text-left">Ancien</th>
+                                            <th class="text-left">Nouveau</th>
+                                        </tr>
+                                        </thead>
+                                        <tbody>
+                                        <tr v-for="item in selectedEvent.changes" :key="item.date">
+                                            <td>{{ item.auteur }}</td>
+                                            <td>{{ item.date }}</td>
+                                            <td>{{ item.item }}</td>
+                                            <td>{{ item.ancien }}</td>
+                                            <td>{{ item.nouveau }}</td>
+                                        </tr>
+                                        </tbody>
+                                    </template>
+                                </v-simple-table>
+
                             </form>
                             <form v-else>
                                 <v-select v-if="activefiliere =='Toutes'"
@@ -205,15 +254,114 @@
                                         type="text"
                                         style="width: 100%"
                                         :min-height="100"
-                                        placeholder="ajoutez les informations sur le séjour: accompagnants, relation avec le résident, age des résidents, etc...">
+                                        placeholder="ajoutez les informations de base sur les occupants, besoins particuliers, etc...">
                                 </textarea-autosize>
+                                <v-data-table
+                                        :headers="ficheheaders"
+                                        :items="selectedEvent.fiche"
+                                        sort-by="nom"
+                                        class="elevation-1"
+                                >
+                                    <template v-slot:top>
+                                        <v-toolbar flat color="white">
+                                            <v-toolbar-title>La Fiche des Résidents</v-toolbar-title>
+                                            <v-divider
+                                                    class="mx-4"
+                                                    inset
+                                                    vertical
+                                            ></v-divider>
+                                            <v-spacer></v-spacer>
+                                            <v-dialog v-model="dialogFiche" max-width="500px">
+                                                <template v-slot:activator="{ on, attrs }">
+                                                    <v-btn
+                                                            color="primary"
+                                                            dark
+                                                            class="mb-2"
+                                                            v-bind="attrs"
+                                                            v-on="on"
+                                                    >Nouveau Résident</v-btn>
+                                                </template>
+                                                <v-card min-width="350px">
+                                                    <v-card-title>
+                                                        <span class="headline">{{ formficheTitle }}</span>
+                                                    </v-card-title>
+
+                                                    <v-card-text>
+                                                        <v-container>
+                                                            <v-row>
+                                                                <v-col cols="12" sm="6" md="4">
+                                                                    <v-text-field v-model="editedFicheItem.nom" label="Nom"></v-text-field>
+                                                                </v-col>
+                                                            </v-row>
+                                                            <v-row>
+                                                                <v-col cols="12" sm="6" md="4">
+                                                                    <v-select
+                                                                            v-model="editedFicheItem.sexe"
+                                                                            :items="sexes"
+                                                                            item-text="sexe"
+                                                                            item-value="sexe"
+                                                                            label="Sexe"
+                                                                            single-line
+                                                                    ></v-select>
+                                                                </v-col>
+                                                            </v-row>
+                                                            <v-row>
+                                                                <v-col cols="12" sm="6" md="4">
+                                                                    <v-select
+                                                                            v-model="editedFicheItem.role"
+                                                                            :items="roles"
+                                                                            item-text="role"
+                                                                            item-value="role"
+                                                                            label="Role"
+                                                                            single-line
+                                                                    ></v-select>
+                                                                </v-col>
+                                                            </v-row>
+                                                            <v-row>
+                                                                <v-col cols="12" sm="6" md="4">
+                                                                    <v-text-field v-model="editedFicheItem.age" type="number" label="Age"></v-text-field>
+                                                                </v-col>
+                                                            </v-row>
+                                                            <v-row>
+                                                                <v-col cols="12" sm="6" md="4">
+                                                                    <v-text-field v-model="editedFicheItem.relationpatient" label="Relation Patient"></v-text-field>
+                                                                </v-col>
+                                                            </v-row>
+                                                        </v-container>
+                                                    </v-card-text>
+
+                                                    <v-card-actions>
+                                                        <v-spacer></v-spacer>
+                                                        <v-btn color="blue darken-1" text @click="ficheClose">Quitter</v-btn>
+                                                        <v-btn color="blue darken-1" text @click="ficheSave">Sauver</v-btn>
+                                                    </v-card-actions>
+                                                </v-card>
+                                            </v-dialog>
+                                        </v-toolbar>
+                                    </template>
+                                    <template v-slot:item.actions="{ item }">
+                                        <v-icon
+                                                small
+                                                class="mr-2"
+                                                @click="editFicheItem(item)"
+                                        >
+                                            mdi-pencil
+                                        </v-icon>
+                                        <v-icon
+                                                small
+                                                @click="deleteFicheItem(item)"
+                                        >
+                                            mdi-delete
+                                        </v-icon>
+                                    </template>
+                                </v-data-table>
                             </form>
                         </v-card-text>
                         <v-card-actions>
-                            <v-btn text color="secondary" @click="selectedOpen = false">
+                            <v-btn text color="secondary" @click="quitterEdit">
                                 Quitter
                             </v-btn>
-                            <v-btn v-if="currentlyEditing !== selectedEvent.id" text @click.prevent="editEvent(selectedEvent)">
+                            <v-btn v-if="currentlyEditing.id !== selectedEvent.id" text @click.prevent="editEvent(selectedEvent)">
                                 Editer
                             </v-btn>
                             <v-btn text v-else type="submit" @click.prevent="updateEvent(selectedEvent)">
@@ -262,15 +410,48 @@
                 end: ''
             },
             color: '#1976D2', // default event color
-            currentlyEditing: null,
+            currentlyEditing: {},
             selectedEvent: {},
             selectedElement: null,
             selectedOpen: false,
-            dialog: false
+            dialog: false,
+            dialogFiche: false,
+            ficheheaders: [
+                {text: 'Nom', value: 'nom'},
+                {text: 'Sexe', value: 'sexe'},
+                {text: 'Role', value: 'role'},
+                {text: 'RelationPatient', value: 'relationpatient'},
+                {text: 'Age', value: 'age'},
+                {text: 'Actions', value: 'actions', sortable: false},
+            ],
+            changeheaders: [
+                {text: 'Date', value: 'date'},
+                {text: 'Changement', value: 'item', sortable: false},
+                {text: 'Ancien', value: 'ancien', sortable: false},
+                {text: 'Nouveau', value: 'nouveau', sortable: false},
+            ],
+            editedFicheIndex: -1,
+            editedFicheItem: {
+                nom: '',
+                sexe: 'F',
+                role: 'accompagnant',
+                age: '',
+                relationpatient: ''
+            },
+            defaultFicheItem: {
+                nom: '',
+                sexe: 'F',
+                role: 'accompagnant',
+                age: '',
+                relationpatient: ''
+            },
         }),
         watch: {
             dialog (val) {
                 val || this.close()
+            },
+            dialogFiche (val) {
+                val || this.ficheClose()
             },
         },
         mounted () {
@@ -324,6 +505,12 @@
             },
             statuts() {
                 return ['A Valider','Validé']
+            },
+            sexes() {
+                return ['F','M']
+            },
+            roles() {
+                return ['accompagnant','patient']
             },
             chambres() {
                 return ['Chambre partagée','Chambre double','Chambre triple (enfant >=3ans)','Appartement']
@@ -393,6 +580,9 @@
                 !this.$v.newEvent.end.required && errors.push('La date départ est obligatoire.')
                 return errors
             },
+            formficheTitle () {
+                return this.editedFicheIndex === -1 ? 'Nouveau Résident' : 'Editer Resident'
+            },
         },
         methods: {
             formattedDate(item) {
@@ -419,7 +609,6 @@
                     .then(() => this.$store.dispatch('calendar/fetchAllEvents',{'nomfiliere':this.activefiliere}))
             },
             getEvents () {
-                console.log("fetching events for filiere: ",this.activefiliere)
                 this.$store.dispatch('calendar/fetchAllEvents',{'nomfiliere':this.activefiliere})
             },
 
@@ -449,12 +638,37 @@
             next () {
                 this.$refs.calendar.next()
             },
+            telecharger() {
+                this.$store.dispatch('calendar/xlsxExport')
+            },
+            quitter() {
+                if (confirm("Etes vous sur de quitter? Vos changements seront perdus")) {
+                    this.close()
+                }
+            },
+            quitterEdit() {
+                if (this.currentlyEditing.id === this.selectedEvent.id) {
+                    if (confirm("Etes vous sur de quitter? Vos changements seront perdus")) {
+                        this.selectedOpen = false
+                        this.selectedEvent = {}
+                        this.currentlyEditing = {}
+                        this.getEvents()
+
+                    }
+                }
+                else {
+                    this.selectedOpen = false
+                    this.currentlyEditing = {}
+                }
+
+            },
             close () {
                 this.dialog = false
                 this.$nextTick(() => {
                     this.newEvent = Object.assign({}, this.defaultEvent)
 
                 })
+
             },
             addEvent () {
                 let eventFiliere = this.newEvent.filiere
@@ -470,7 +684,7 @@
                     // utilisateur qui gère plusieurs filières
                     eventStatut = 'A Valider'
                 }
-                console.log('We will create a event with start date: ',this.newEvent.start , 'with end date: ',this.newEvent.end ,' filiere: ',eventFiliere.nom , ' and statut: ',eventStatut )
+
                 const thisEvent= {
                     resident: this.newEvent.nom,
                     start: this.newEvent.start,
@@ -490,26 +704,36 @@
 
             },
             editEvent (ev) {
-                this.currentlyEditing = ev.id
+                this.currentlyEditing = ev
             },
             updateEvent (ev) {
+                console.log( 'Entering updateEvent',ev)
+                return this.$store.dispatch('calendar/updateEvent',ev)
+                    .then((obj) => {
+                        ev.changes=obj.changes
+                        this.currentlyEditing = {}
+                        const textNotification = "Statut : " + ev.statut + " Resident: " + ev.resident + " Chambre: "
+                            + ev.chambre + " Arrivée: " + ev.start + " Départ: " + ev.end + " Détails: " + ev.details
 
-                if (this.activefiliere !='Toutes') {
-                    ev.statut= 'A Valider'
-                }
-                this.$store.dispatch('calendar/updateEvent',ev)
-                    .then(() => {
-                        this.currentlyEditing = null
+                        this.$store.dispatch('notifications/createNotification', {
+                                sujet: 'Modification Séjour',
+                                text: textNotification,
+                                filiere: ev.filiere
+                            },
+                            {root: true})
+
                     })
+
 
             },
             deleteEvent (ev) {
-
-                this.$store.dispatch('calendar/deleteEvent',ev)
-                    .then(() => {
-                        this.selectedOpen = false
-                        this.getEvents()
-                    })
+                if (confirm("Etes vous sur d'annuler ce séjour?")) {
+                    this.$store.dispatch('calendar/deleteEvent', ev)
+                        .then(() => {
+                            this.selectedOpen = false
+                            this.getEvents()
+                        })
+                }
             },
             showEvent ({ nativeEvent, event }) {
                 const open = () => {
@@ -528,7 +752,41 @@
             updateRange ({ start, end }) {
                 this.calendarstart = start
                 this.calendarend = end
-            }
+            },
+            deleteFicheItem(item) {
+                const index = this.selectedEvent.fiche.indexOf(item)
+                if (confirm("Etes vous sur d'enlever ce résident?"))
+                {
+                    if (this.activefiliere !='Toutes') {
+                        this.selectedEvent.statut= 'A Valider'
+                    }
+                    this.selectedEvent.fiche.splice(index, 1)
+                    // this.$store.dispatch('calendar/updateFiche', this.selectedEvent)
+                }
+            },
+            editFicheItem (item) {
+                this.editedFicheIndex = this.selectedEvent.fiche.indexOf(item)
+                this.editedFicheItem = Object.assign({}, item)
+                this.dialogFiche = true
+            },
+
+           
+
+            ficheClose () {
+                this.dialogFiche = false
+                this.$nextTick(() => {
+                    this.editedFicheItem = Object.assign({}, this.defaultItem)
+                    this.editedFicheIndex = -1
+                })
+            },
+            ficheSave () {
+                if (this.editedFicheIndex > -1) {
+                    Object.assign(this.selectedEvent.fiche[this.editedFicheIndex], this.editedFicheItem)
+                } else {
+                       this.selectedEvent.fiche.push(this.editedFicheItem)
+                }
+                this.ficheClose()
+               },
         }
     }
 </script>
